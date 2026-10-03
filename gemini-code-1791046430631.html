@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mantenimiento Detectores de Humo - NFPA 72</title>
+  <style>
+    :root {
+      --primary: #d32f2f;
+      --primary-dark: #b71c1c;
+      --bg: #f4f6f9;
+      --card-bg: #ffffff;
+      --text: #212121;
+      --border: #e0e0e0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 15px; display: flex; justify-content: center; }
+    .container { max-width: 500px; width: 100%; }
+    
+    .card { background: var(--card-bg); border-radius: 12px; padding: 18px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid var(--border); }
+    .header-card { border-top: 5px solid var(--primary); }
+    
+    .badge { display: inline-block; background: #ffebee; color: var(--primary-dark); font-weight: bold; font-size: 12px; padding: 4px 10px; border-radius: 6px; margin-bottom: 8px; }
+    h1 { font-size: 20px; color: var(--primary-dark); margin-bottom: 12px; }
+    
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; margin-bottom: 10px; }
+    .info-item span { display: block; color: #666; font-size: 11px; text-transform: uppercase; }
+    
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; color: #333; }
+    select, input, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: #fff; }
+    textarea { resize: vertical; min-height: 70px; }
+    
+    .btn-group { display: flex; gap: 10px; }
+    .btn-option { flex: 1; padding: 10px; border: 1px solid var(--border); background: #fff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; text-align: center; }
+    .btn-option.selected-ok { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+    .btn-option.selected-no { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
+    
+    .hidden { display: none; }
+    
+    .btn-submit { width: 100%; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; transition: background 0.2s; }
+    .btn-submit:hover { background: var(--primary-dark); }
+    
+    .history-item { border-bottom: 1px solid #eee; padding: 10px 0; font-size: 13px; }
+    .history-item:last-child { border-bottom: none; }
+    .history-date { font-weight: bold; color: var(--primary); }
+  </style>
+
+  <!-- Firebase App & Database -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+
+<div class="container">
+  <!-- Tarjeta de Información del Dispositivo -->
+  <div class="card header-card">
+    <span class="badge" id="lbl-id">DETECTOR...</span>
+    <h1 id="lbl-nombre">Detector de Humo NFPA 72</h1>
+    <div class="info-grid">
+      <div class="info-item"><span>Ubicación:</span><strong id="lbl-ubicacion">Cargando...</strong></div>
+      <div class="info-item"><span>Zona / Lazo:</span><strong id="lbl-zona">Zona 01</strong></div>
+      <div class="info-item"><span>Tipo:</span><strong id="lbl-tipo">Fotoeléctrico</strong></div>
+      <div class="info-item"><span>Último Servicio:</span><strong id="lbl-ultimo">Sin registros</strong></div>
+    </div>
+  </div>
+
+  <!-- Formulario de Mantenimiento NFPA 72 -->
+  <form id="form-mantenimiento" class="card">
+    <h2 style="font-size:16px; margin-bottom:15px; color:#333;">Registro de Servicio / Mantenimiento</h2>
+
+    <!-- Tipo de Servicio -->
+    <div class="form-group">
+      <label>Tipo de Servicio Realizado:</label>
+      <select id="tipo-servicio" required>
+        <option value="Inspección Visual Periódica">Inspección Visual Periódica (NFPA 72)</option>
+        <option value="Prueba Funcional de Humo">Prueba Funcional de Humo / Sensibilidad</option>
+        <option value="Mantenimiento Preventivo / Limpieza">Mantenimiento Preventivo / Limpieza</option>
+        <option value="Atención de Alarma / Novedad">Atención de Alarma / Novedad</option>
+        <option value="Reemplazo de Dispositivo">Reemplazo de Dispositivo</option>
+      </select>
+    </div>
+
+    <!-- Estado de Alarma previo -->
+    <div class="form-group">
+      <label>¿El equipo estuvo en alarma o presentó falla reciente?</label>
+      <div class="btn-group">
+        <div class="btn-option" onclick="setAlarma(true, this)">SÍ</div>
+        <div class="btn-option selected-ok" onclick="setAlarma(false, this)">NO</div>
+      </div>
+    </div>
+
+    <!-- Campo desplegable si estuvo en alarma -->
+    <div class="form-group hidden" id="box-motivo-alarma">
+      <label style="color: var(--primary-dark);">Motivo de la Alarma / Falsa Alarma / Falla:</label>
+      <textarea id="motivo-alarma" placeholder="Ej: Falsa alarma por acumulación de polvo en cámara, humo de soldadura, caída de tensión en lazo..."></textarea>
+    </div>
+
+    <!-- Verificación NFPA 72 -->
+    <div class="form-group">
+      <label>Inspección Visual y Limpieza (NFPA 72):</label>
+      <div class="btn-group">
+        <div class="btn-option selected-ok" id="btn-limpieza-ok" onclick="setParam('limpieza', 'OK', this)">OK / Limpio</div>
+        <div class="btn-option" id="btn-limpieza-no" onclick="setParam('limpieza', 'Requiere Limpieza', this)">Requiere Limpieza</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Prueba Funcional (LED de Supervisión y Disparo):</label>
+      <div class="btn-group">
+        <div class="btn-option selected-ok" id="btn-prueba-ok" onclick="setParam('prueba', 'Satisfactoria', this)">Satisfactoria</div>
+        <div class="btn-option" id="btn-prueba-no" onclick="setParam('prueba', 'Falla / No responde', this)">Falla</div>
+      </div>
+    </div>
+
+    <!-- Novedades y Observaciones -->
+    <div class="form-group">
+      <label>Observaciones / Novedades Adicionales:</label>
+      <textarea id="observaciones" placeholder="Escribe detalles del servicio, cambios realizados o repuestos requeridos..."></textarea>
+    </div>
+
+    <!-- Datos del Técnico -->
+    <div class="form-group">
+      <label>Técnico / Inspector Responsable:</label>
+      <input type="text" id="tecnico" placeholder="Nombre completo del inspector" required>
+    </div>
+
+    <button type="submit" class="btn-submit">Guardar Registro en Base de Datos</button>
+  </form>
+
+  <!-- Historial Reciente del Detector -->
+  <div class="card">
+    <h2 style="font-size:16px; margin-bottom:10px; color:#333;">Historial de Mantenimientos</h2>
+    <div id="lista-historial">
+      <p style="font-size:13px; color:#888;">Cargando historial...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 1. Configuración de Firebase (Conectado a tu proyecto)
+  const firebaseConfig = {
+    databaseURL: "https://qr-extintor-default-rtdb.firebaseio.com"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  // 2. Obtener ID del detector desde la URL (?id=DET-01)
+  const urlParams = new URLSearchParams(window.location.search);
+  const detectorID = urlParams.get('id') || 'DET-01';
+
+  // Variables del formulario
+  let tuvoAlarma = false;
+  let estadoLimpieza = 'OK';
+  let estadoPrueba = 'Satisfactoria';
+
+  // Mostrar ID en pantalla
+  document.getElementById('lbl-id').textContent = detectorID;
+
+  // 3. Cargar Datos del Detector y su Historial desde Firebase
+  function cargarDatos() {
+    // Datos del equipo
+    database.ref('detectores/' + detectorID).on('value', (snapshot) => {
+      const data = snapshot.val();
+      if(data) {
+        document.getElementById('lbl-nombre').textContent = data.nombre || 'Detector de Humo';
+        document.getElementById('lbl-ubicacion').textContent = data.ubicacion || 'Sector General';
+        document.getElementById('lbl-zona').textContent = data.zona || 'Lazo 1';
+        document.getElementById('lbl-tipo').textContent = data.tipo || 'Fotoeléctrico';
+      } else {
+        document.getElementById('lbl-ubicacion').textContent = 'Área General de Planta';
+      }
+    });
+
+    // Cargar Historial
+    database.ref('mantenimientos').orderByChild('detectorID').equalTo(detectorID).on('value', (snapshot) => {
+      const historialContainer = document.getElementById('lista-historial');
+      historialContainer.innerHTML = '';
+      
+      let registros = [];
+      snapshot.forEach(childSnapshot => {
+        registros.push(childSnapshot.val());
+      });
+
+      if(registros.length === 0) {
+        historialContainer.innerHTML = '<p style="font-size:13px; color:#888;">No hay servicios registrados para este detector.</p>';
+        document.getElementById('lbl-ultimo').textContent = 'Sin registros';
+        return;
+      }
+
+      // Ordenar más reciente primero
+      registros.reverse();
+
+      // Mostrar último servicio en la cabecera
+      document.getElementById('lbl-ultimo').textContent = registros[0].fecha;
+
+      // Mostrar lista
+      registros.forEach(reg => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.innerHTML = `
+          <div class="history-date">${reg.fecha} - ${reg.tipoServicio}</div>
+          <div><strong>Técnico:</strong> ${reg.tecnico}</div>
+          <div><strong>Prueba NFPA 72:</strong> ${reg.prueba} | <strong>Limpieza:</strong> ${reg.limpieza}</div>
+          ${reg.estuvoEnAlarma ? `<div style="color:red;"><strong>Novedad/Alarma:</strong> ${reg.motivoAlarma}</div>` : ''}
+          ${reg.observaciones ? `<div><strong>Obs:</strong> ${reg.observaciones}</div>` : ''}
+        `;
+        historialContainer.appendChild(item);
+      });
+    });
+  }
+
+  // Interacción de botones
+  function setAlarma(val, el) {
+    tuvoAlarma = val;
+    const parent = el.parentElement;
+    Array.from(parent.children).forEach(c => c.className = 'btn-option');
+    if(val) {
+      el.className = 'btn-option selected-no';
+      document.getElementById('box-motivo-alarma').classList.remove('hidden');
+    } else {
+      el.className = 'btn-option selected-ok';
+      document.getElementById('box-motivo-alarma').classList.add('hidden');
+    }
+  }
+
+  function setParam(tipo, valor, el) {
+    const parent = el.parentElement;
+    Array.from(parent.children).forEach(c => c.className = 'btn-option');
+    if(tipo === 'limpieza') {
+      estadoLimpieza = valor;
+      el.className = valor === 'OK' ? 'btn-option selected-ok' : 'btn-option selected-no';
+    } else {
+      estadoPrueba = valor;
+      el.className = valor === 'Satisfactoria' ? 'btn-option selected-ok' : 'btn-option selected-no';
+    }
+  }
+
+  // 4. Guardar Formulario en Firebase
+  document.getElementById('form-mantenimiento').addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const nuevoRegistro = {
+      detectorID: detectorID,
+      fecha: new Date().toLocaleString('es-ES'),
+      timestamp: Date.now(),
+      tipoServicio: document.getElementById('tipo-servicio').value,
+      estuvoEnAlarma: tuvoAlarma,
+      motivoAlarma: tuvoAlarma ? document.getElementById('motivo-alarma').value : 'N/A',
+      limpieza: estadoLimpieza,
+      prueba: estadoPrueba,
+      observaciones: document.getElementById('observaciones').value || 'Sin novedades',
+      tecnico: document.getElementById('tecnico').value
+    };
+
+    database.ref('mantenimientos').push(nuevoRegistro).then(() => {
+      alert('¡Servicio de mantenimiento registrado con éxito en Firebase!');
+      document.getElementById('motivo-alarma').value = '';
+      document.getElementById('observaciones').value = '';
+    }).catch(err => {
+      alert('Error al guardar: ' + err.message);
+    });
+  });
+
+  // Inicializar
+  cargarDatos();
+</script>
+
+</body>
+</html>
